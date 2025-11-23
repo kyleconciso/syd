@@ -1,0 +1,15 @@
+[package]
+name = "basic-shell"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+syd-client = { path = "../../crates/syd-client" }
+syd-core = { path = "../../crates/syd-core" }
+zbus = { workspace = true }
+gtk4 = { workspace = true }
+glib = { workspace = true }
+tokio = { workspace = true }
+futures = { workspace = true }
+libappindicator = "0.5.0"
+gtk = "0.15.0"

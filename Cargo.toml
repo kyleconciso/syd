@@ -1,0 +1,24 @@
+[workspace]
+members = [
+    "crates/syd-core",
+    "crates/syd-client",
+    "crates/syd-daemon",
+    "examples/basic-shell"
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Kyle <kyle@example.com>"]
+license = "MIT"
+
+[workspace.dependencies]
+zbus = "4.4.0"
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.36", features = ["full"] }
+gtk4 = "0.9"
+glib = "0.20"
+futures = "0.3"
+async-stream = "0.3"
+serde_json = "1.0"

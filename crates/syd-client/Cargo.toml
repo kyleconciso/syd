@@ -1,0 +1,11 @@
+[package]
+name = "syd-client"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+syd-core = { path = "../syd-core" }
+zbus = { workspace = true }
+futures = { workspace = true }
+async-stream = { workspace = true }
+tokio = { workspace = true }

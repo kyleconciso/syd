@@ -1,0 +1,11 @@
+[package]
+name = "syd-daemon"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+syd-core = { path = "../syd-core" }
+zbus = { workspace = true }
+tokio = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true }
