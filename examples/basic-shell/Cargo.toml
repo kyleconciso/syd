@@ -11,5 +11,3 @@ gtk4 = { workspace = true }
 glib = { workspace = true }
 tokio = { workspace = true }
 futures = { workspace = true }
-libappindicator = "0.5.0"
-gtk = "0.15.0"

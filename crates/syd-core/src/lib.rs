@@ -2,7 +2,6 @@ use zbus::{proxy, zvariant};
 use serde::{Deserialize, Serialize};
 
 
-
 #[derive(Debug, Serialize, Deserialize, zbus::zvariant::Type, Clone, Default)]
 pub struct WifiNet {
     pub ssid: String,
@@ -32,7 +31,7 @@ pub struct NotifData {
     pub app_name: String,
 }
 
-
+// --- Interfaces ---
 
 #[proxy(interface = "org.syd.Notifications", default_service = "org.syd.Daemon", default_path = "/org/syd/Notifications")]
 pub trait Notifications {
@@ -42,17 +41,16 @@ pub trait Notifications {
     fn close(&self, id: u32) -> zbus::Result<()>;
 }
 
-
-
+// Tray Watcher
 #[proxy(interface = "org.kde.StatusNotifierWatcher", default_service = "org.syd.Daemon", default_path = "/StatusNotifierWatcher")]
 pub trait StatusNotifierWatcher {
     #[zbus(signal)] 
     fn status_notifier_item_registered(&self, service_name: String) -> zbus::Result<()>;
     
-    fn register_status_notifier_item(&self, service: String) -> zbus::Result<()>;
+    fn register_status_notifier_item(&self, service_text: String) -> zbus::Result<()>;
 }
 
-
+// Tray Item
 #[proxy(interface = "org.kde.StatusNotifierItem")]
 pub trait StatusNotifierItem {
     fn activate(&self, x: i32, y: i32) -> zbus::Result<()>;
@@ -65,7 +63,7 @@ pub trait StatusNotifierItem {
     #[zbus(property)] fn menu(&self) -> zbus::Result<zvariant::OwnedObjectPath>;
 }
 
-
+// Standard Services
 #[proxy(interface = "org.syd.Audio", default_service = "org.syd.Daemon", default_path = "/org/syd/Audio")]
 pub trait Audio {
     fn set_volume(&self, percentage: u32) -> zbus::Result<()>;
