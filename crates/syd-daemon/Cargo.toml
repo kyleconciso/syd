@@ -5,7 +5,7 @@ edition.workspace = true
 
 [dependencies]
 syd-core = { path = "../syd-core" }
-zbus = { workspace = true }
-tokio = { workspace = true }
+zbus = { workspace = true, features = ["tokio"] }
+tokio = { workspace = true, features = ["process", "rt-multi-thread", "macros", "fs"] }
 serde_json = { workspace = true }
 serde = { workspace = true }

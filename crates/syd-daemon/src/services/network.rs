@@ -1,6 +1,5 @@
 use zbus::{interface, object_server::SignalContext, Connection};
-use tokio::process::Command as TokioCommand;
-use std::process::Command as StdCommand;
+use tokio::process::Command;
 use tokio::time::{sleep, Duration};
 use syd_core::WifiNet;
 use std::collections::HashSet;
@@ -8,23 +7,28 @@ use std::collections::HashSet;
 pub struct NetworkService;
 #[interface(name = "org.syd.Network")]
 impl NetworkService {
-    async fn get_state(&self) -> String { read_state_sync() }
+    async fn get_state(&self) -> String { read_state_async().await }
     
     async fn set_wifi(&self, e: bool) { 
-        let _ = StdCommand::new("nmcli").args(&["radio", "wifi", if e{"on"}else{"off"}]).output(); 
+        let _ = Command::new("nmcli").args(&["radio", "wifi", if e{"on"}else{"off"}]).output().await; 
     }
     
     async fn scan(&self) -> Vec<WifiNet> {
-        let active_ssid = get_active_ssid();
-        let known_ssids = get_known_ssids();
+        let active_ssid = get_active_ssid().await;
+        let known_ssids = get_known_ssids().await;
 
-        if let Ok(o) = StdCommand::new("nmcli").args(&["-t", "-f", "SSID,SIGNAL,SECURITY", "dev", "wifi"]).output() {
+        if let Ok(o) = Command::new("nmcli")
+            .env("LC_ALL", "C")
+            .args(&["-t", "-f", "SSID,SIGNAL,SECURITY", "dev", "wifi"])
+            .output().await 
+        {
             let mut seen = HashSet::new();
             let mut res = Vec::new();
             
             for line in String::from_utf8_lossy(&o.stdout).lines() {
                 let p: Vec<&str> = line.split(':').collect();
                 if p.len() < 3 { continue; }
+                
                 let ssid = p[0].to_string();
                 if ssid.is_empty() || seen.contains(&ssid) { continue; }
                 seen.insert(ssid.clone());
@@ -47,13 +51,14 @@ impl NetworkService {
 
     async fn connect(&self, ssid: String, pass: String) -> String {
         if !pass.is_empty() {
-             let _ = StdCommand::new("nmcli").args(&["con", "delete", &ssid]).output();
+             let _ = Command::new("nmcli").args(&["con", "delete", &ssid]).output().await;
         }
-        let mut cmd = StdCommand::new("nmcli");
+        let mut cmd = Command::new("nmcli");
+        cmd.env("LC_ALL", "C");
         cmd.args(&["dev", "wifi", "connect", &ssid]);
         if !pass.is_empty() { cmd.args(&["password", &pass]); }
         
-        if let Ok(o) = cmd.output() {
+        if let Ok(o) = cmd.output().await {
             if o.status.success() { return "OK".into(); }
             let err = String::from_utf8_lossy(&o.stderr);
             if err.contains("Secrets were required") { return "PASS_REQ".into(); }
@@ -63,14 +68,14 @@ impl NetworkService {
     }
 
     async fn forget(&self, ssid: String) {
-        let _ = StdCommand::new("nmcli").args(&["con", "delete", &ssid]).output();
+        let _ = Command::new("nmcli").args(&["con", "delete", &ssid]).output().await;
     }
 
     #[zbus(signal)] async fn state_changed(&self, ctxt: &SignalContext<'_>, state: String) -> zbus::Result<()>;
 }
 
-fn get_active_ssid() -> String {
-    if let Ok(o) = StdCommand::new("nmcli").args(&["-t", "-f", "NAME", "con", "show", "--active"]).output() {
+async fn get_active_ssid() -> String {
+    if let Ok(o) = Command::new("nmcli").env("LC_ALL", "C").args(&["-t", "-f", "NAME", "con", "show", "--active"]).output().await {
         for l in String::from_utf8_lossy(&o.stdout).lines() {
              if l != "lo" && !l.contains("docker") && !l.contains("virbr") { return l.to_string(); }
         }
@@ -78,25 +83,16 @@ fn get_active_ssid() -> String {
     "".into()
 }
 
-fn get_known_ssids() -> HashSet<String> {
+async fn get_known_ssids() -> HashSet<String> {
     let mut s = HashSet::new();
-    if let Ok(o) = StdCommand::new("nmcli").args(&["-t", "-f", "NAME", "con", "show"]).output() {
+    if let Ok(o) = Command::new("nmcli").env("LC_ALL", "C").args(&["-t", "-f", "NAME", "con", "show"]).output().await {
         for l in String::from_utf8_lossy(&o.stdout).lines() { s.insert(l.to_string()); }
     }
     s
 }
 
-
-fn read_state_sync() -> String {
-    if let Ok(o) = StdCommand::new("nmcli").args(&["general", "status"]).output() {
-        if String::from_utf8_lossy(&o.stdout).contains("connected") { return "Connected".into(); }
-    }
-    "Disconnected".into()
-}
-
-
 async fn read_state_async() -> String {
-    if let Ok(o) = TokioCommand::new("nmcli").args(&["general", "status"]).output().await {
+    if let Ok(o) = Command::new("nmcli").env("LC_ALL", "C").args(&["general", "status"]).output().await {
         if String::from_utf8_lossy(&o.stdout).contains("connected") { return "Connected".into(); }
     }
     "Disconnected".into()

@@ -1,81 +1,76 @@
 # Syd 🦀
 
-> **S**yd **Y**ields **D**ata.
+**Syd** sits in the background, watches your system (Volume, Battery, Wifi, etc.), and sends a clean stream of events to your app (frontend shell)
 
+If you're building a custom desktop environment, this handles the backend plumbing so you can just focus on the UI
 
-Syd is a session daemon that sits in the background, monitors your system state (Volume, Battery, Network, Tray) and pushes updates over DBus only when things change
+## How it works
 
-It’s a backend for your custom shell. You handle the UI, Syd handles the logic
+*   **`syd-daemon`**: Run this in the background. It wraps standard Linux CLI tools and DBus services into one event loop
+*   **`syd-client`**: Exposes `Syd::events()` stream
 
+## Prerequisites
 
-## Architecture
+*   `pactl` (Audio)
+*   `playerctl` (Media)
+*   `brightnessctl` (Screen)
+*   `nmcli` (Network)
+*   `bluetoothctl` (Bluetooth)
+*   `upower` (Battery)
 
-The project is split into three crates:
+**Build-time dependencies:**
+You'll need `libgtk-4-dev` and `libdbus-1-dev` (or your distros equivalent) to compile the examples
 
-*   **`syd-daemon`**: The engine, Run this in the background
-*   **`syd-client`**: The Rust SDK, provides a unified `Syd::events()` stream
-*   **`syd-core`**: The raw DBus protocol definitions if you want to connect using Python, JS, or Lua
+## Setup
 
-## Installation
+1. **Get the daemon running:**
 
-### From Source
 ```bash
-# 1. Clone the repo
 git clone https://github.com/kyleconciso/syd
 cd syd
-
-# 2. Install the daemon
 cargo install --path crates/syd-daemon
 
-# 3. Run it
+# Start it up (put this in your sway/hyprland config)
 syd-daemon &
 ```
 
-## Building a Shell
+2. **Use it in your Rust app:**
 
-No raw DBus handling, use the client library
-
-Add this to your `Cargo.toml`:
+Add to `Cargo.toml`:
 ```toml
 [dependencies]
-syd-client = { path = "../path/to/syd/crates/syd-client" } # Or version from crates.io
+syd-client = { path = "/path/to/syd/crates/syd-client" }
 tokio = { version = "1", features = ["full"] }
 ```
 
-**Example `main.rs`:**
+3. **Listen for events:**
 
 ```rust
 use syd_client::{Syd, SydEvent};
 
 #[tokio::main]
 async fn main() {
-    // Connect to the running daemon
     let syd = Syd::connect().await.unwrap();
+    let mut stream = syd.events().await;
 
-    // The stream
-    let mut events = syd.events().await;
-
-    while let Some(event) = events.next().await {
+    while let Some(event) = stream.next().await {
         match event {
-            SydEvent::Volume(vol) => println!("Volume is now {}%", vol),
-            SydEvent::Media { title, .. } => println!("Now playing: {}", title),
-            SydEvent::TrayItem(id) => println!("New Tray Icon: {}", id),
-            SydEvent::Notification(n) => println!("New Notification: {}", n.summary),
+            SydEvent::Volume(v) => println!("Vol: {}%", v),
+            SydEvent::NetworkState(s) => println!("Wifi: {}", s),
+            SydEvent::Battery(pct, state) => println!("Bat: {}% ({})", pct, state),
+            // ... handle media, brightness, bluetooth, notifications, tray, etc
             _ => {}
         }
     }
 }
 ```
 
-## Services Supported
+## Status
+It works on my machine (Arch/Hyprland)
 
-- [x] **Audio** (PulseAudio/PipeWire) - Volume, Mute, Sinks, Sources
-- [x] **Media** (MPRIS) - Play/Pause, Seek, Metadata (Spotify, Firefox, etc)
-- [x] **Network** (NetworkManager) - Wifi scanning, connecting, and passwords
-- [x] **System** (UPower/Sysfs) - Battery, Power Profiles, User info
-- [x] **Bluetooth** (BlueZ) - Power, Device lists, connection toggling
-- [x] **Notifications** - History, Dismissal, and popups
+- **Audio:** Pulse/Pipewire supported.
+- **Network:** Only NetworkManager for now.
+- **System:** Uses UPower for battery, systemd for reboot/shutdown.
+- **Tray:** Implements the StatusNotifierItem watcher so tray icons show up
 
-## License
-
-MIT
+License: MIT

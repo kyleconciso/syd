@@ -1,25 +1,24 @@
 use zbus::{interface, object_server::SignalContext, Connection};
-use tokio::process::Command as TokioCommand;
-use std::process::Command as StdCommand;
+use tokio::process::Command;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use std::process::Stdio;
 
 pub struct MediaService;
 #[interface(name = "org.syd.Media")]
 impl MediaService {
-    async fn play_pause(&self) { let _ = StdCommand::new("playerctl").arg("play-pause").output(); }
-    async fn next(&self) { let _ = StdCommand::new("playerctl").arg("next").output(); }
-    async fn prev(&self) { let _ = StdCommand::new("playerctl").arg("previous").output(); }
+    async fn play_pause(&self) { let _ = Command::new("playerctl").arg("play-pause").output().await; }
+    async fn next(&self) { let _ = Command::new("playerctl").arg("next").output().await; }
+    async fn prev(&self) { let _ = Command::new("playerctl").arg("previous").output().await; }
     
     async fn get_position(&self) -> f64 {
-        if let Ok(o) = StdCommand::new("playerctl").arg("position").output() {
+        if let Ok(o) = Command::new("playerctl").env("LC_ALL", "C").arg("position").output().await {
             return String::from_utf8_lossy(&o.stdout).trim().parse().unwrap_or(0.0);
         }
         0.0
     }
 
     async fn get_length(&self) -> f64 {
-        if let Ok(o) = StdCommand::new("playerctl").args(&["metadata", "mpris:length"]).output() {
+        if let Ok(o) = Command::new("playerctl").env("LC_ALL", "C").args(&["metadata", "mpris:length"]).output().await {
              let micros = String::from_utf8_lossy(&o.stdout).trim().parse::<f64>().unwrap_or(0.0);
              return micros / 1_000_000.0;
         }
@@ -27,12 +26,11 @@ impl MediaService {
     }
 
     async fn set_position(&self, sec: f64) {
-        let _ = StdCommand::new("playerctl").args(&["position", &sec.to_string()]).output();
+        let _ = Command::new("playerctl").args(&["position", &sec.to_string()]).output().await;
     }
     
-    
     async fn get_metadata(&self) -> (String, String, String) {
-        if let Ok(o) = StdCommand::new("playerctl").args(&["metadata", "--format", "{{status}}|{{title}}|{{artist}}"]).output() {
+        if let Ok(o) = Command::new("playerctl").env("LC_ALL", "C").args(&["metadata", "--format", "{{status}}|{{title}}|{{artist}}"]).output().await {
             let s = String::from_utf8_lossy(&o.stdout).to_string();
             let parts: Vec<&str> = s.trim().split('|').collect();
             if parts.len() >= 3 {
@@ -48,8 +46,7 @@ impl MediaService {
 pub async fn monitor(conn: Connection) {
     let iface = conn.object_server().interface::<_, MediaService>("/org/syd/Media").await.unwrap();
 
-    
-    if let Ok(o) = TokioCommand::new("playerctl").args(&["metadata", "--format", "{{status}}|{{title}}|{{artist}}"]).output().await {
+    if let Ok(o) = Command::new("playerctl").env("LC_ALL", "C").args(&["metadata", "--format", "{{status}}|{{title}}|{{artist}}"]).output().await {
         let s = String::from_utf8_lossy(&o.stdout);
         if !s.trim().is_empty() {
             let p: Vec<&str> = s.trim().split('|').collect();
@@ -59,8 +56,13 @@ pub async fn monitor(conn: Connection) {
         }
     }
 
-    let mut child = TokioCommand::new("playerctl").args(&["metadata", "--follow", "--format", "{{status}}|{{title}}|{{artist}}"])
-        .stdout(Stdio::piped()).spawn().unwrap();
+    let mut child = Command::new("playerctl")
+        .env("LC_ALL", "C")
+        .args(&["metadata", "--follow", "--format", "{{status}}|{{title}}|{{artist}}"])
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("Failed to spawn playerctl monitor");
+
     let mut reader = BufReader::new(child.stdout.take().unwrap());
     let mut line = String::new();
     
